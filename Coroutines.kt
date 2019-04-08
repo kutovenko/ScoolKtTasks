@@ -25,8 +25,8 @@ suspend fun getCounters(): List<Int> {
     try {
         withContext(Dispatchers.Default) {
             for (id in 1..3) {
+                val response = async { getCounter(id) }
                 launch {
-                    val response = async { getCounter(id) }
                     results.add(
                         try {
                             println("in thread ${Thread.currentThread().name}") // For debug
