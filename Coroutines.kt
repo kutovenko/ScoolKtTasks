@@ -15,57 +15,40 @@ fun main() = runBlocking{
     println(getCounters().toString())
 }
 
+/*
+Отрефакторил. Но появился вопрос.
+Почему запускается не асинхронно, а последовательно? Что я неправльно понял из статьи?
+https://medium.com/@elizarov/the-reason-to-avoid-globalscope-835337445abc
+ */
 suspend fun getCounters(): List<Int> {
     val timeout = 5000L
     val results = mutableListOf<Int>()
-    var res1 = 0
-    var res2 = 0
-    var res3 = 0
 
     try {
         coroutineScope {
-            val response1 = GlobalScope.async { getCounter(1) }
-            val response2 = GlobalScope.async { getCounter(2) }
-            val response3 = GlobalScope.async { getCounter(3) }
-
-            try {
-                withTimeout(timeout) { res1 = response1.await() }
-            } catch (e: TimeoutCancellationException) {
-                println("[TimeoutCancellationException] ${e.message}")
-                coroutineContext.cancel()
-            } catch (e: RuntimeException) {
-                coroutineContext.cancel()
-                println("[RuntimeException] ${e.message}")
-            }
-
-            try {
-                withTimeout(timeout) { res2 = response2.await() }
-            } catch (e: TimeoutCancellationException) {
-                println("[TimeoutCancellationException] ${e.message}")
-                coroutineContext.cancel()
-            } catch (e: RuntimeException) {
-                coroutineContext.cancel()
-                println("[RuntimeException] ${e.message}")
-            }
-
-            try {
-                withTimeout(timeout) { res3 = response3.await() }
-            } catch (e: TimeoutCancellationException) {
-                println("[TimeoutCancellationException] ${e.message}")
-                coroutineContext.cancel()
-            } catch (e: RuntimeException) {
-                coroutineContext.cancel()
-                println("[RuntimeException] ${e.message}")
+            for (id in 1..3){
+                val response = async(Dispatchers.Default) { getCounter(id) }
+                results.add(
+                    try {
+                        println("in thread ${Thread.currentThread().name}") // For debug
+                        withTimeout(timeout) { response.await() }
+                    } catch (e: TimeoutCancellationException) {
+                        println("[TimeoutCancellationException in $id] ${e.message}")
+                        coroutineContext.cancel()
+                        0
+                    } catch (e: RuntimeException) {
+                        coroutineContext.cancel()
+                        println("[RuntimeException in $id] ${e.message}")
+                        0
+                    }
+                )
             }
         }
     } catch (e: CancellationException){
         println("At least one task failed")
     } finally {
-        results.add(res1)
-        results.add(res2)
-        results.add(res3)
+        return results
     }
-    return results
 }
 
 suspend fun getCounter(id: Int): Int {
