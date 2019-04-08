@@ -16,32 +16,32 @@ fun main() = runBlocking{
 }
 
 /*
-Отрефакторил. Но появился вопрос.
-Почему запускается не асинхронно, а последовательно? Что я неправльно понял из статьи?
-https://medium.com/@elizarov/the-reason-to-avoid-globalscope-835337445abc
+Отрефакторил. Вопрос: что лучше использовать в данном случае - withContext(Dispatchers.Default) или просто coroutineScope?
  */
 suspend fun getCounters(): List<Int> {
     val timeout = 5000L
     val results = mutableListOf<Int>()
 
     try {
-        coroutineScope {
-            for (id in 1..3){
-                val response = async(Dispatchers.Default) { getCounter(id) }
-                results.add(
-                    try {
-                        println("in thread ${Thread.currentThread().name}") // For debug
-                        withTimeout(timeout) { response.await() }
-                    } catch (e: TimeoutCancellationException) {
-                        println("[TimeoutCancellationException in $id] ${e.message}")
-                        coroutineContext.cancel()
-                        0
-                    } catch (e: RuntimeException) {
-                        coroutineContext.cancel()
-                        println("[RuntimeException in $id] ${e.message}")
-                        0
-                    }
-                )
+        withContext(Dispatchers.Default) {
+            for (id in 1..3) {
+                launch {
+                    val response = async { getCounter(id) }
+                    results.add(
+                        try {
+                            println("in thread ${Thread.currentThread().name}") // For debug
+                            withTimeout(timeout) { response.await() }
+                        } catch (e: TimeoutCancellationException) {
+                            println("[TimeoutCancellationException in $id] ${e.message}")
+                            coroutineContext.cancel()
+                            0
+                        } catch (e: RuntimeException) {
+                            coroutineContext.cancel()
+                            println("[RuntimeException in $id] ${e.message}")
+                            0
+                        }
+                    )
+                }
             }
         }
     } catch (e: CancellationException){
@@ -50,6 +50,7 @@ suspend fun getCounters(): List<Int> {
         return results
     }
 }
+
 
 suspend fun getCounter(id: Int): Int {
     val duration = Random.nextLong(0, 10000)
